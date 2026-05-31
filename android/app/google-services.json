@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "313637952324",
+    "project_id": "mongestionnaire-5d97b",
+    "storage_bucket": "mongestionnaire-5d97b.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:313637952324:android:15226754ca21c57a235511",
+        "android_client_info": {
+          "package_name": "com.mongestionnaire.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA5uf5jtvSVVuZcTqEWP1qUIlgxQ7DcNho"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
