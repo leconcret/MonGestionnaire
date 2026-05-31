@@ -583,11 +583,12 @@ class _HomePageState
   String recherche = "";
 
   final List<String> categoriesEntree = [
-    "Salaire",
-    "Business",
-    "Don",
-    "Autre",
-  ];
+  "Salaire",
+  "Business",
+  "Don",
+  "Retrait épargne",
+  "Autre",
+];
 
   final List<String> categoriesSortie = [
     "Loyer",
@@ -879,6 +880,57 @@ class _HomePageState
 
                 ElevatedButton(
                   onPressed: () {
+
+                    if (type == "Entrée" &&
+    categorie == "Retrait épargne") {
+  double totalEntreesEpargne = widget.transactions
+      .where(
+        (t) =>
+            t.type == "Sortie" &&
+            t.categorie == "Épargne",
+      )
+      .fold(
+        0,
+        (s, t) => s + t.montant,
+      );
+
+  double totalRetraitsEpargne = widget.transactions
+      .where(
+        (t) =>
+            t.type == "Entrée" &&
+            t.categorie == "Retrait épargne",
+      )
+      .fold(
+        0,
+        (s, t) => s + t.montant,
+      );
+
+  double epargneDisponible =
+      totalEntreesEpargne - totalRetraitsEpargne;
+
+  double montantRetrait = double.tryParse(
+        montantController.text,
+      ) ??
+      0;
+
+  if (montantRetrait > epargneDisponible) {
+    ScaffoldMessenger.of(context).showSnackBar(
+  const SnackBar(
+    backgroundColor: Colors.red,
+    duration: Duration(seconds: 3),
+    content: Text(
+      "Retrait impossible : montant supérieur à votre épargne disponible",
+      style: TextStyle(
+        color: Colors.white,
+        fontWeight: FontWeight.bold,
+      ),
+    ),
+  ),
+);
+
+    return;
+  }
+}
 
                      TransactionItem t =
     TransactionItem(
@@ -1445,64 +1497,57 @@ class _StatistiquesPageState
   }
 
   void analyser() {
+  if (dateDebut == null || dateFin == null) {
+    return;
+  }
 
-    if (dateDebut == null ||
-        dateFin == null) {
-      return;
-    }
+  totalEntrees = 0;
+  totalSorties = 0;
 
-    totalEntrees = 0;
-    totalSorties = 0;
+  statsCategories.clear();
 
-    statsCategories.clear();
+  for (var t in widget.transactions) {
+    DateTime d = DateTime.parse(t.date);
 
-    for (var t in widget.transactions) {
+    if (d.isAfter(
+          dateDebut!.subtract(
+            const Duration(days: 1),
+          ),
+        ) &&
+        d.isBefore(
+          dateFin!.add(
+            const Duration(days: 1),
+          ),
+        )) {
+      if (t.type == "Entrée") {
+        totalEntrees += t.montant;
+      } else {
+        totalSorties += t.montant;
+      }
 
-      DateTime d =
-          DateTime.parse(t.date);
-
-      if (d.isAfter(
-            dateDebut!.subtract(
-              const Duration(days: 1),
-            ),
-          ) &&
-          d.isBefore(
-            dateFin!.add(
-              const Duration(days: 1),
-            ),
-          )) {
-
-        if (t.type == "Entrée") {
-
-          totalEntrees += t.montant;
-        } else {
-
-          totalSorties += t.montant;
-
-          statsCategories[t.categorie] =
-              (statsCategories[t.categorie] ??
-                      0) +
-                  t.montant;
-        }
+      if (t.type == "Sortie" ||
+          t.categorie == "Retrait épargne") {
+        statsCategories[t.categorie] =
+            (statsCategories[t.categorie] ?? 0) +
+                t.montant;
       }
     }
-
-    categorieDominante = "";
-    montantDominant = 0;
-
-    statsCategories.forEach(
-      (k, v) {
-
-        if (v > montantDominant) {
-
-          montantDominant = v;
-          categorieDominante = k;
-        }
-      },
-    );
-
-    setState(() {});
   }
+
+  categorieDominante = "";
+  montantDominant = 0;
+
+  statsCategories.forEach(
+    (k, v) {
+      if (v > montantDominant) {
+        montantDominant = v;
+        categorieDominante = k;
+      }
+    },
+  );
+
+  setState(() {});
+}
 
   @override
   Widget build(BuildContext context) {
@@ -1914,18 +1959,35 @@ class EpargnePage extends StatelessWidget {
     required this.transactions,
   });
 
-  double get totalEpargne {
-    return transactions
-        .where(
-          (t) =>
-              t.type == "Sortie" &&
-              t.categorie == "Épargne",
-        )
-        .fold(
-          0,
-          (s, t) => s + t.montant,
-        );
-  }
+  double get totalEntreesEpargne {
+  return transactions
+      .where(
+        (t) =>
+            t.type == "Sortie" &&
+            t.categorie == "Épargne",
+      )
+      .fold(
+        0,
+        (s, t) => s + t.montant,
+      );
+}
+
+double get totalRetraitsEpargne {
+  return transactions
+      .where(
+        (t) =>
+            t.type == "Entrée" &&
+            t.categorie == "Retrait épargne",
+      )
+      .fold(
+        0,
+        (s, t) => s + t.montant,
+      );
+}
+
+double get epargneDisponible {
+  return totalEntreesEpargne - totalRetraitsEpargne;
+}
 
   String formatMontant(double montant) {
     return NumberFormat(
@@ -1953,7 +2015,7 @@ class EpargnePage extends StatelessWidget {
                 ),
                 const SizedBox(height: 20),
                 const Text(
-                  "Épargne totale",
+                  "Épargne disponible",
                   style: TextStyle(
                     fontSize: 24,
                     fontWeight: FontWeight.bold,
@@ -1961,7 +2023,7 @@ class EpargnePage extends StatelessWidget {
                 ),
                 const SizedBox(height: 15),
                 Text(
-                  "${formatMontant(totalEpargne)} FCFA",
+                  "${formatMontant(epargneDisponible)} FCFA",
                   style: const TextStyle(
                     fontSize: 30,
                     fontWeight: FontWeight.bold,
