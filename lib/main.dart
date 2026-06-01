@@ -1951,7 +1951,7 @@ class _StatistiquesPageState
     );
   }
 }
-class EpargnePage extends StatelessWidget {
+class EpargnePage extends StatefulWidget {
   final List<TransactionItem> transactions;
 
   const EpargnePage({
@@ -1959,35 +1959,82 @@ class EpargnePage extends StatelessWidget {
     required this.transactions,
   });
 
+  @override
+  State<EpargnePage> createState() => _EpargnePageState();
+}
+
+class _EpargnePageState extends State<EpargnePage> {
+  double objectifEpargne = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    chargerObjectifEpargne();
+  }
+
+  Future<void> chargerObjectifEpargne() async {
+    final prefs = await SharedPreferences.getInstance();
+
+    setState(() {
+      objectifEpargne = prefs.getDouble("objectifEpargne") ?? 0;
+    });
+  }
+
+  Future<void> sauvegarderObjectifEpargne(double montant) async {
+    final prefs = await SharedPreferences.getInstance();
+
+    await prefs.setDouble("objectifEpargne", montant);
+
+    setState(() {
+      objectifEpargne = montant;
+    });
+  }
+
   double get totalEntreesEpargne {
-  return transactions
-      .where(
-        (t) =>
-            t.type == "Sortie" &&
-            t.categorie == "Épargne",
-      )
-      .fold(
-        0,
-        (s, t) => s + t.montant,
-      );
-}
+    return widget.transactions
+        .where(
+          (t) =>
+              t.type == "Sortie" &&
+              t.categorie == "Épargne",
+        )
+        .fold(
+          0,
+          (s, t) => s + t.montant,
+        );
+  }
 
-double get totalRetraitsEpargne {
-  return transactions
-      .where(
-        (t) =>
-            t.type == "Entrée" &&
-            t.categorie == "Retrait épargne",
-      )
-      .fold(
-        0,
-        (s, t) => s + t.montant,
-      );
-}
+  double get totalRetraitsEpargne {
+    return widget.transactions
+        .where(
+          (t) =>
+              t.type == "Entrée" &&
+              t.categorie == "Retrait épargne",
+        )
+        .fold(
+          0,
+          (s, t) => s + t.montant,
+        );
+  }
 
-double get epargneDisponible {
-  return totalEntreesEpargne - totalRetraitsEpargne;
-}
+  double get epargneDisponible {
+    return totalEntreesEpargne - totalRetraitsEpargne;
+  }
+
+  double get resteAEpargner {
+    double reste = objectifEpargne - epargneDisponible;
+
+    return reste < 0 ? 0 : reste;
+  }
+
+  double get progression {
+    if (objectifEpargne <= 0) {
+      return 0;
+    }
+
+    double valeur = epargneDisponible / objectifEpargne;
+
+    return valeur > 1 ? 1 : valeur;
+  }
 
   String formatMontant(double montant) {
     return NumberFormat(
@@ -1996,44 +2043,179 @@ double get epargneDisponible {
     ).format(montant);
   }
 
+  void afficherDialogObjectif() {
+    TextEditingController objectifController =
+        TextEditingController(
+      text: objectifEpargne > 0
+          ? objectifEpargne.toStringAsFixed(0)
+          : "",
+    );
+
+    showDialog(
+      context: context,
+      builder: (_) {
+        return AlertDialog(
+          title: const Text("Objectif d'épargne"),
+          content: TextField(
+            controller: objectifController,
+            keyboardType: TextInputType.number,
+            decoration: const InputDecoration(
+              labelText: "Montant objectif",
+              hintText: "Ex : 50000",
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context);
+              },
+              child: const Text("Annuler"),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                double montant = double.tryParse(
+                      objectifController.text,
+                    ) ??
+                    0;
+
+                sauvegarderObjectifEpargne(montant);
+
+                Navigator.pop(context);
+              },
+              child: const Text("Enregistrer"),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    int pourcentage = (progression * 100).round();
+
     return Scaffold(
       backgroundColor: const Color(0xFFF8F8F8),
-      body: Center(
-        child: Card(
-          margin: const EdgeInsets.all(25),
-          child: Padding(
-            padding: const EdgeInsets.all(25),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(
-                  Icons.savings,
-                  size: 60,
-                  color: Colors.green,
-                ),
-                const SizedBox(height: 20),
-                const Text(
-                  "Épargne disponible",
-                  style: TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
+      body: SingleChildScrollView(
+        child: Padding(
+          padding: const EdgeInsets.all(25),
+          child: Card(
+            child: Padding(
+              padding: const EdgeInsets.all(25),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(
+                    Icons.account_balance_wallet,
+                    size: 60,
+                    color: Colors.green,
                   ),
-                ),
-                const SizedBox(height: 15),
-                Text(
-                  "${formatMontant(epargneDisponible)} FCFA",
-                  style: const TextStyle(
-                    fontSize: 30,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFFD4A017),
+
+                  const SizedBox(height: 20),
+
+                  const Text(
+                    "Épargne disponible",
+                    style: TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
-                ),
-              ],
+
+                  const SizedBox(height: 15),
+
+                  Text(
+                    "${formatMontant(epargneDisponible)} FCFA",
+                    style: const TextStyle(
+                      fontSize: 30,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFFD4A017),
+                    ),
+                  ),
+
+                  const SizedBox(height: 30),
+
+                  statLine(
+                    "Objectif",
+                    objectifEpargne > 0
+                        ? "${formatMontant(objectifEpargne)} FCFA"
+                        : "Non défini",
+                    Colors.green,
+                  ),
+
+                  statLine(
+                    "Reste à épargner",
+                    "${formatMontant(resteAEpargner)} FCFA",
+                    Colors.red,
+                  ),
+
+                  statLine(
+                    "Progression",
+                    "$pourcentage %",
+                    Colors.green,
+                  ),
+
+                  const SizedBox(height: 15),
+
+                  LinearProgressIndicator(
+                    value: progression,
+                    minHeight: 10,
+                  ),
+
+                  const SizedBox(height: 25),
+
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: afficherDialogObjectif,
+                      icon: const Icon(Icons.flag),
+                      label: const Text(
+                        "Définir objectif",
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor:
+                            const Color(0xFF1B8E3E),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.all(15),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  Widget statLine(
+    String titre,
+    String valeur,
+    Color couleur,
+  ) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+        vertical: 8,
+      ),
+      child: Row(
+        mainAxisAlignment:
+            MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            titre,
+            style: const TextStyle(
+              fontSize: 17,
+            ),
+          ),
+          Text(
+            valeur,
+            style: TextStyle(
+              fontSize: 17,
+              fontWeight: FontWeight.bold,
+              color: couleur,
+            ),
+          ),
+        ],
       ),
     );
   }
