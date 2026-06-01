@@ -495,6 +495,7 @@ final collection =
     }
   }
 
+
   @override
 Widget build(BuildContext context) {
   List<Widget> pages = [
@@ -511,8 +512,14 @@ Widget build(BuildContext context) {
       transactions: transactions,
     ),
     EpargnePage(
-      transactions: transactions,
-    ),
+  transactions: transactions,
+  onChanged: () async {
+    await sauvegarderTransactions();
+    await sauvegarderTransactionsCloud();
+
+    setState(() {});
+  },
+),
   ];
 
   return Scaffold(
@@ -724,10 +731,11 @@ class _HomePageState
   }
 
   void ajouterOuModifier({
-    String type = "Entrée",
-    TransactionItem? transaction,
-    int? index,
-  }) {
+  String type = "Entrée",
+  String? categorieInitiale,
+  TransactionItem? transaction,
+  int? index,
+}) {
 
     bool modification =
         transaction != null;
@@ -753,9 +761,9 @@ class _HomePageState
             : categoriesSortie;
 
     String categorie =
-        transaction?.categorie ??
-            categories.first;
-
+    transaction?.categorie ??
+        categorieInitiale ??
+        categories.first;
     String moyenPaiement =
         transaction?.moyenPaiement ??
             moyensPaiement.first;
@@ -1953,12 +1961,13 @@ class _StatistiquesPageState
 }
 class EpargnePage extends StatefulWidget {
   final List<TransactionItem> transactions;
+  final VoidCallback onChanged;
 
   const EpargnePage({
     super.key,
     required this.transactions,
+    required this.onChanged,
   });
-
   @override
   State<EpargnePage> createState() => _EpargnePageState();
 }
@@ -2090,6 +2099,108 @@ class _EpargnePageState extends State<EpargnePage> {
     );
   }
 
+  void ajouterMouvementEpargne({
+  required bool retrait,
+}) {
+  TextEditingController montantController =
+      TextEditingController();
+
+  TextEditingController descriptionController =
+      TextEditingController(
+    text: retrait ? "Retrait épargne" : "Épargne",
+  );
+
+  showDialog(
+    context: context,
+    builder: (_) {
+      return AlertDialog(
+        title: Text(
+          retrait ? "Retirer de l'épargne" : "Ajouter à l'épargne",
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: montantController,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(
+                labelText: "Montant",
+              ),
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: descriptionController,
+              decoration: const InputDecoration(
+                labelText: "Description",
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+            },
+            child: const Text("Annuler"),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              double montant = double.tryParse(
+                    montantController.text,
+                  ) ??
+                  0;
+
+              if (montant <= 0) {
+                return;
+              }
+
+              if (retrait && montant > epargneDisponible) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    backgroundColor: Colors.red,
+                    duration: Duration(seconds: 3),
+                    content: Text(
+                      "Retrait impossible : montant supérieur à votre épargne disponible",
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                );
+
+                return;
+              }
+
+              TransactionItem t = TransactionItem(
+                id: DateTime.now()
+                    .millisecondsSinceEpoch
+                    .toString(),
+                type: retrait ? "Entrée" : "Sortie",
+                categorie:
+                    retrait ? "Retrait épargne" : "Épargne",
+                moyenPaiement: "Espèces",
+                description: descriptionController.text,
+                montant: montant,
+                date: DateTime.now().toString(),
+              );
+
+              setState(() {
+                widget.transactions.insert(0, t);
+              });
+
+              widget.onChanged();
+
+              Navigator.pop(context);
+            },
+            child: const Text("Valider"),
+          ),
+        ],
+      );
+    },
+  );
+}
+
   @override
   Widget build(BuildContext context) {
     int pourcentage = (progression * 100).round();
@@ -2162,6 +2273,46 @@ class _EpargnePageState extends State<EpargnePage> {
                   ),
 
                   const SizedBox(height: 25),
+
+                  Row(
+  children: [
+    Expanded(
+      child: ElevatedButton.icon(
+        onPressed: () {
+          ajouterMouvementEpargne(
+            retrait: false,
+          );
+        },
+        icon: const Icon(Icons.add),
+        label: const Text("Épargner"),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.green,
+          foregroundColor: Colors.white,
+          padding: const EdgeInsets.all(14),
+        ),
+      ),
+    ),
+    const SizedBox(width: 10),
+    Expanded(
+      child: ElevatedButton.icon(
+        onPressed: () {
+          ajouterMouvementEpargne(
+            retrait: true,
+          );
+        },
+        icon: const Icon(Icons.remove),
+        label: const Text("Retirer"),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.red,
+          foregroundColor: Colors.white,
+          padding: const EdgeInsets.all(14),
+        ),
+      ),
+    ),
+  ],
+),
+
+const SizedBox(height: 15),
 
                   SizedBox(
                     width: double.infinity,
